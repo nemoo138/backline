@@ -1,0 +1,6 @@
+Shared decoder runtime extracted from the local Backline Demo 1b support code.
+Original paths: demos/evodecode/coprocessor.cpp and native_callback.py.
+Initial extraction: 2026-09-28. The wire ABI and callback are unchanged.
+Maintained in the Backline fork under packages/decoder-runtime.
+This companion package is not a release of the official PennyLane/Catalyst runtime.
+License: Apache-2.0; see distribution LICENSE.
