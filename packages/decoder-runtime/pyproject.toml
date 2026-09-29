@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "backline-decoder-runtime"
+version = "0.1.0"
+description = "Shared local decoder queue and callback runtime maintained by the Backline fork"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+dependencies = []
+classifiers = ["Operating System :: POSIX :: Linux"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+backline_decoder_runtime = ["coprocessor.cpp", "NOTICE"]
