@@ -12,6 +12,11 @@ tier you have and stop there.
 | 3 | Remote CPU-GPU interactions | As above, plus a server containing a GPU and an RDMA NIC, accessible over SSH | [2](demos/demo_2_remote_cpu_to_remote_gpu_triton.py), [2a](demos/demo_2a_remote_cpu_to_remote_gpu_triton_runtime_calls.py), [3](demos/demo_3_remote_cpu_to_remote_gpu.py) |
 | 4 | Remote CPU-FPGA or GPU-FPGA interactions | As above, plus a [Xilinx VPK120](https://www.amd.com/en/products/adaptive-socs-and-fpgas/evaluation-boards/vpk120.html) board connected to the server via RDMA | [4](demos/demo_4_remote_fpga_to_remote_gpu.py), [5](demos/demo_5_remote_fpga_to_remote_gpu_triton.py), [benchmarks](benchmarks/README.md) |
 
+For the EvoDecode-facing queue and callback package, follow
+[its installation instructions](packages/decoder-runtime/README.md). Its standalone
+callback example requires Python and a C++20 compiler, without model weights or Torch.
+Install model-specific inference dependencies in the EvoDecode environment.
+
 ## Requirements
 
 | | needed for | notes |

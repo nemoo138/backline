@@ -6,7 +6,7 @@ Python 回调生命周期及原生库编译。包本身仅依赖 Python 标准�
 
 ## 两个仓库如何使用
 
-- Backline 演示从本包导入 `NativeCallback` 和 `build_coprocessor`。
+- Backline 的无权重回调示例从本包导入 `NativeCallback` 和 `build_coprocessor`。
 - EvoDecode 固定依赖 `backline-decoder-runtime==0.1.0`，负责数据、解码与实验管理。
 - `src/backline_decoder_runtime/coprocessor.cpp` 是共享队列的唯一源码位置。
 
@@ -20,6 +20,18 @@ library = build_coprocessor(Path("run/libdecoder.so"))
 `NativeCallback` 接口与原演示一致，供同进程 C ABI 回调使用；外层进程管理者负责
 超时终止。原生库在调用者的运行目录编译，不写入安装目录。wire ABI 仍使用
 `evodecode_*` 符号，保持现有 Controller 兼容。
+
+## 职责边界
+
+本包只管理传输请求的分片、队列、回调执行和清理。调用者提供接收 bytes 并返回
+二进制结果的函数；本包不加载 checkpoint，不构造 AQ2/Ising 模型，不生成纠错数据。
+EvoDecode 管理权重、模型推理、数据转换及实验报告，Backline 不再另存其模型包。
+旧 demo 1b、模型专用适配器及运行记录已移除；模型文件集中保存在 EvoDecode。
+本包与测试无需这些历史文件。
+官方硬件示例继续保留。`evodecode_*` C 符号是已有 ABI 名称，不表示反向依赖
+EvoDecode，也不在本次整理中重命名。
+
+无模型示例：`python demos/demo_decoder_callback.py`（从仓库根目录运行）。
 
 ## 构建与安装
 

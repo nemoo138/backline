@@ -45,6 +45,12 @@ Once Backline is [installed](#installation), you can get started by checking out
 [demos in this repository](demos/README.md). To reproduce the paper, run those and the
 [benchmarks](benchmarks/README.md).
 
+For EvoDecode integration, this fork maintains the
+[decoder runtime package](packages/decoder-runtime/README.md): fragment assembly,
+bounded queues, and callback lifecycle. Model loading, weights, data conversion,
+and experiment reports belong to EvoDecode. Start with the
+[weight-free callback example](demos/demo_decoder_callback.py).
+
 Also make sure to check out the [technical documentation](https://docs.pennylane.ai/en/latest/code/qp_backline.html),
 [technical manuscript](https://arxiv.org/abs/2609.09270), and [Backline whitepaper](https://xanadu.ai/docs/backline-whitepaper.pdf).
 

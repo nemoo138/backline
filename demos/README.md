@@ -1,8 +1,7 @@
 # Demos
 
-Each demo showcase complete quantum error correction round(s) locally or across a real fabric. They are ordered so
-that each requires additional hardware to the one before it: start at demo 1 and stop wherever your hardware
-does.
+These demos exercise quantum circuits, decoder inference, and communication on local or remote
+hardware. Start with demo 1 to check the local runtime, then choose a demo for your hardware.
 
 Assumes [`../INSTALL.md`](../INSTALL.md) is done, with the virtual environment active. That page
 lists what each tier requires; this README describes how to run them.
@@ -17,7 +16,8 @@ lists what each tier requires; this README describes how to run them.
 | [4](demo_4_remote_fpga_to_remote_gpu.py) | remote FPGA | remote GPU | RDMA, between two machines | Steane, precompiled | 4 |
 | [5](demo_5_remote_fpga_to_remote_gpu_triton.py) | remote FPGA | remote GPU | RDMA, between two machines | Steane, from Python | 4 |
 
-The demos have been tested with an AMD MI210 GPU, an mlx5 NIC (ConnectX-7) and a VPK120 board.
+The RDMA/GPU demos have been tested with an AMD MI210 GPU, an mlx5 NIC (ConnectX-7)
+and a VPK120 board.
 
 Three machines appear in these demos:
 
@@ -38,16 +38,39 @@ Which machine runs which node:
 From demo 2 onward this machine runs no node of its own: it compiles the program, ships each
 node's code to the machine that runs it, and starts the run.
 
+## Queue and callback example for EvoDecode
+
+The custom runtime maintained here handles bytes, fragment assembly, bounded requests,
+and Python callbacks. EvoDecode owns model loading, weights, input mapping, and experiment
+results. The previous model-specific demo 1b, its adapters, and local experiment outputs
+have been removed. Its model files are now managed in EvoDecode; this repository
+does not require those files for installation or tests. The upstream numbered
+hardware demos remain available below.
+
+Install the shared package, then run this from the repository root:
+
+```bash
+python -m pip install --no-deps --no-build-isolation ./packages/decoder-runtime
+python demos/demo_decoder_callback.py
+python -m unittest discover -s packages/decoder-runtime/tests -v
+```
+
+The example compiles a temporary C++ library, submits two fragmented requests, and checks
+callback results using a byte-parity function. It requires Python and a C++20 compiler;
+no model, Torch, PennyLane, or GPU is needed. It directly exercises the native C ABI,
+not a Catalyst QNode or physical RDMA/FPGA transport. Use demo 1 or the hardware demos
+for those integration checks. Temporary build files are removed when the example exits.
+
 ## Running demos
 
-Run from the `demos` directory, which is where each script looks for `placement.py`:
+For demos 1, 1a and 2–5, run from the `demos` directory to import `placement.py`:
 
 ```bash
 cd demos
 ./demo_1_local_cpu_to_local_cpu_memcpy.py
 ```
 
-Each demo reads two paths when it starts. Both have defaults in the `[paths]` table of
+Demos 1, 1a and 2–5 use the following paths. Their defaults are in the `[paths]` table of
 [`../config/machines.toml`](../config/machines.toml), and the environment variables override them,
 so set a variable only where the default does not match your layout.
 
@@ -145,7 +168,7 @@ hardware, so the host CPU stays out of the round trip. Both print ten zero rows.
 
 ## Reference logs
 
-One captured run per demo lives in [`expected_logs/`](expected_logs), with the driver output, each
+Captured runs for demos 1, 1a and 2–5 live in [`expected_logs/`](expected_logs), with the driver output, each
 executor's log, and a provenance file recording the three commits it was taken at. To refresh one,
 from the repository root:
 
@@ -155,7 +178,7 @@ from the repository root:
 
 ## Pointing it at your own machines
 
-Hosts, ports, devices and deployment paths are all in
+For demos 1, 1a and 2–5, hosts, ports, devices and deployment paths are in
 [`../config/machines.toml`](../config/machines.toml), which `demos/placement.py` and
 `benchmarks/placement.py` read and turn into one node per entry. Editing that file is what runs the
 demos on your own hardware.
@@ -164,8 +187,8 @@ demos on your own hardware.
 
 | | |
 |---|---|
-| controller | the machine that runs the circuit and sends out a syndrome |
-| coprocessor | the machine running a decoding function and returning a reply |
+| controller | the role that runs the circuit and sends decode requests |
+| coprocessor | the role that processes decode requests and returns replies |
 | syndrome | the 8-byte message sent by the controller |
 | correction | the 8-byte message returned by the coprocessor |
 | decoder | a function accepting the syndrome and returning the correction |
