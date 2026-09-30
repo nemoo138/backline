@@ -1,122 +1,152 @@
-# Backline
+# EvoBackline
 
-[Backline](https://docs.pennylane.ai/en/latest/code/qp_backline.html) is an open platform for compilation and low-latency execution by Xanadu and AMD that
-dynamically connects quantum workloads to the right classical engine.
+`evobackline` 是本 Backline fork 为 [EvoDecode](https://github.com/qhub-cn/evo-decode)
+长期维护的集成分支。这里维护数据传递所需的分片重组、任务队列和回调接口，
+让 EvoDecode 可以把收到的数据交给自己的解码器，再返回结果。
 
-With PennyLane and Backline, anyone can write a QEC encoder or decoder from Python, test it with
-meaningful quantum algorithms, and immediately deploy it for near-real-time execution on CPUs,
-GPUs, FPGAs, and QPUs — while supporting the need to drop through abstractions and write
-increasingly optimized and low-level code.
+本分支的主要交付物是独立 Python 包
+[`backline-decoder-runtime`](packages/decoder-runtime/README.md)，当前版本为 **0.1.0**。
+它不依赖 EvoDecode、Torch 或模型权重；官方 Backline 的核心实现仍由
+PennyLane/Catalyst 提供。本仓库保留上游的硬件演示、构建配置和论文资料。
 
-<p align="center">
-  <img src="assets/backline.png" width="700px">
-</p>
+## 与 EvoDecode 的分工
 
-> [!NOTE]
-> The core Backline implementation and source code lives natively within the PennyLane and Catalyst
-> repositories. This repository holds the demonstrations, benchmarks, and the cross-build system
-> accompanying the manuscript ["Python in the front, party in the Backline: compiling quantum workloads across CPUs, GPUs, and FPGAs"](https://arxiv.org/abs/2609.09270).
+| 工作 | 维护位置 |
+| --- | --- |
+| 原生请求分片重组、有界任务队列、结果收集 | 本仓库的 `packages/decoder-runtime/` |
+| Python 回调注册、错误记录和退出清理 | 本仓库的 `packages/decoder-runtime/` |
+| Controller/Coprocessor 配置及实际传输执行 | PennyLane/Catalyst；本仓库保留演示和构建配置 |
+| 帧格式、输入转换、回放和实时数据生成 | EvoDecode |
+| AQ2/Ising 模型构造、权重加载、CPU/GPU 推理 | EvoDecode |
+| 实验配置、预测对比和结果报告 | EvoDecode |
 
-> [!NOTE]
-> Backline is currently under heavy development — if you have suggestions on the API or use-cases
-> you'd like covered, please open a GitHub issue in the relevant repository ([PennyLane](https://github.com/pennylaneai/pennylane/issues) or [Catalyst](https://github.com/pennylaneai/catalyst/issues)), or reach out to backline@xanadu.ai and
-> quantum@amd.com. We'd love to hear about how you're using the library, collaborate on
-> development, or integrate additional devices and frontends.
+共享包接收字节数据，调用应用提供的 Python 函数，当前回调要求返回 **0 或 1**。
+它不解释数据对应哪种模型，也不决定模型如何分块推理。
+旧的 EvoDecode 专用演示和模型适配器已经移除，本仓库不分发模型权重或本地实验结果。
 
-## Key Features
+## 结构与调用流程
 
-* **Single-digit microsecond latency**: Achieve under 3-μs end-to-end loops. Backline
-  treats CPUs and GPUs as highly responsive endpoints to support the tight co-processing needed
-  for QEC backup decoding.
+![EvoBackline 架构与请求生命周期](assets/evobackline-architecture.png)
 
-* **Scale from R&D to production**: Prototype immediately on standard CPUs—bypassing the need for any GPUs. Then, seamlessly scale to consumer- and
-  enterprise-grade GPUs and FPGAs from the exact same PennyLane application.
+[查看高清原图](assets/evobackline-architecture.png)。上图展示当前 EvoDecode 的本地
+`memcpy` 接入：Controller 发送数据，共享包重组分片、排队并调用 EvoDecode 的
+`predict` 回调，完成后按请求编号取回结果。CPU Coprocessor 承接回调，AQ2 的
+张量计算仍在 GPU 上执行；权重和 RT 跨块状态由 EvoDecode 管理。
 
-* **Python-native**: Build entirely in Python. Write optimized GPU kernels using
-  [Triton and Gluon](https://triton-lang.org/), or integrate pre-compiled libraries alongside your quantum logic.
-  Easily jump through abstraction layers without switching frameworks.
+图示省略了返回路径上的工作线程和传输层细节。传输分片每次携带 8 字节，
+与模型的帧块不同；RT 中间块返回的 0 是占位确认，最终块才返回 shot 预测。
+本地无权重示例直接调用 C 入口；RDMA/FPGA 属于另行配置的上游硬件演示。
 
-* **Infrastructure agnostic by design**: Leveraging the LLVM ecosystem, Backline supports
-  CPUs, GPUs, FPGAs, and custom devices to meet the diverse error-correction needs of any quantum platform.
+## 先运行无权重示例
 
-## Getting started
+需要 **Linux、Python 3.11 或更新版本，以及支持 C++20 的 `c++` 编译器**。
+以下命令从本仓库根目录执行；CPU 集成环境目前验证的是 Linux x86_64 / Python 3.12。
 
-Once Backline is [installed](#installation), you can get started by checking out the [Backline tutorial](https://pennylane.ai/demos/backline), then working your way through the
-[demos in this repository](demos/README.md). To reproduce the paper, run those and the
-[benchmarks](benchmarks/README.md).
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install 'setuptools>=77' wheel
+python -m pip install --no-deps --no-build-isolation ./packages/decoder-runtime
+python demos/demo_decoder_callback.py
+```
 
-Also make sure to check out the [technical documentation](https://docs.pennylane.ai/en/latest/code/qp_backline.html),
-[technical manuscript](https://arxiv.org/abs/2609.09270), and [Backline whitepaper](https://xanadu.ai/docs/backline-whitepaper.pdf).
+预期输出：
 
-## Architectural overview
+```text
+request 0: 25 bytes, result=0
+request 1: 25 bytes, result=1
+PASS: fragmentation, queue, callback, and result collection
+```
 
-Backline provides the following three main abstractions for use with PennyLane and Catalyst:
+[示例源码](demos/demo_decoder_callback.py)会在临时目录编译 C++ 库，
+把两个请求分片提交到队列，再通过计算字节和的奇偶性检查回调结果。
+运行结束后清理临时编译文件，不需要模型、GPU 或 PennyLane。
 
-- **Controllers**: This is the classical hardware node (such as a CPU or FPGA) that controls the QPU
-  (a quantum hardware or simulator `qp.device`), receives quantum measurement
-  results, and initiates data transfers with other hardware devices (*coprocessors*). For
-  example, it might perform QEC syndrome measurements on the QPU, and send these to a coprocessor
-  for decoding.
+这个示例直接调用原生 C 接口，只验证分片、队列和回调。
+它不经过 Catalyst QNode，也不能证明 RDMA、FPGA 或 GPU 推理已经可用。
 
-- **Coprocessors**: These are hardware device nodes (such as CPUs, GPUs, or FPGAs) that receive
-  information from a controller for processing. They run specific **coprocessing functions**,
-  potentially as a persistent kernel, such as a QEC decoder.
+## 接入 EvoDecode
 
-- **Backline**: A representation of the complete hardware infrastructure supporting the
-  quantum-classical program. The backline includes a controller, one or more coprocessors, and a
-  transport method. A backline object is given directly to a QNode in place of a traditional
-  QNode `qp.device`, and orchestrates the remote executor and the RDMA network the controllers
-  and coprocessors talk over, separate from the network used to log into remote machines.
+先在本仓库根目录构建安装包：
 
-If you are an AI agent, read [`AGENTS.md`](AGENTS.md) first: the same material, plus the specific
-traps that have caught agents here before.
+```bash
+python -m pip wheel --no-deps --no-build-isolation \
+  ./packages/decoder-runtime --wheel-dir ./dist
+```
 
-## Repository Overview
+然后在 EvoDecode 仓库根目录，将生成的 wheel 交给安装脚本：
 
-This repository contains the benchmark data from the manuscript ["Python in the front, party in the Backline: compiling quantum workloads across CPUs, GPUs, and FPGAs"](https://arxiv.org/abs/2609.09270),
-as well as the cross-build system for reproducing the stack demonstrated.
+```bash
+python3.12 tools/install_backline_cpu.py \
+  --runtime-wheel /path/to/backline/dist/backline_decoder_runtime-0.1.0-py3-none-any.whl
+```
 
-In addition, a variety of demos are provided, highlighting the compilation, deployment, and
-execution of a single quantum error-corrected PennyLane program onto several machines at once
-with low-latency execution.
+将 `/path/to/backline` 替换成实际路径。两个仓库不必放在相邻目录。
+这一步安装 CPU 集成环境；GPU 推理还需按 EvoDecode 文档准备对应环境和权重。
+实验入口、配置模板及模型使用方式请查看 EvoDecode 中的 `docs/backline.md`
+和 `examples/backline/`，本仓库不再维护另一套模型运行入口。
 
-* `benchmarks`: the latency measurements the manuscript reports.
-* `config`: the cross-build system (xbuild) and the machines to run on ([`machines.toml`](config/machines.toml)) to
-  reproduce the results from the manuscript.
-* `data`: the measurements themselves, and the notebook to plot.
-* `demos`: demo programs, spanning from a single CPU machine to FPGA-to-GPU.
-* `scripts`: helpers for running the above.
+当前 wheel 尚未发布到 PyPI 或 GitHub Release，需从源码构建。
+wheel 包含 Python/C++ 源码；原生库在使用时编译到调用方指定的目录，
+因此安装 wheel 后仍需要 C++20 编译器。
 
-## Installation
+## 接口与使用限制
 
-Backline requires a recent version of PennyLane, Catalyst, and Lightning. We
-recommend installing version `v0.46.0b1` for [PennyLane](https://github.com/PennyLaneAI/pennylane/tree/v0.46.0b1) and [Lightning](https://github.com/PennyLaneAI/pennylane-lightning/tree/v0.46.0b1), `v0.16.0b1` for [Catalyst](https://github.com/PennyLaneAI/catalyst/tree/v0.16.0b1) (either from source or using pre-built wheels for local demos).
+共享包公开 `NativeCallback`、`CALLBACK` 和 `build_coprocessor`：
 
-To install Backline, please see [`INSTALL.md`](INSTALL.md) for instructions and requirements. Note
-that due to the wide range of system, network, and hardware configurations you can use Backline
-with, there are different installation requirements and steps depending on your needs:
+- `build_coprocessor` 编译原生库到指定路径。
+- `NativeCallback` 管理同进程 Python 回调，并可启用有界任务队列。
+- `CALLBACK` 提供回调使用的 ctypes 函数类型。
 
-| Tier | Features and usage | Requirements | Corresponding Demo |
-| --- | --- | --- | --- |
-| 1 | Local CPU-CPU interactions on any Linux CPU machine | PennyLane and Catalyst | [1](demos/demo_1_local_cpu_to_local_cpu_memcpy.py) |
-| 2 | Local CPU-CPU interactions over RDMA | As above, plus a device that supports the `libibverbs` interface; soft-RoCE will do, an RDMA NIC is optional | [1a](demos/demo_1a_local_cpu_to_local_cpu_rdma.py) |
-| 3 | Remote CPU-GPU interactions | As above, plus a server containing a GPU and an RDMA NIC, accessible over SSH | [2](demos/demo_2_remote_cpu_to_remote_gpu_triton.py), [2a](demos/demo_2a_remote_cpu_to_remote_gpu_triton_runtime_calls.py), [3](demos/demo_3_remote_cpu_to_remote_gpu.py) |
-| 4 | Remote CPU-FPGA or GPU-FPGA interactions | As above, plus a [Xilinx VPK120](https://www.amd.com/en/products/adaptive-socs-and-fpgas/evaluation-boards/vpk120.html) board connected to the server via RDMA | [4](demos/demo_4_remote_fpga_to_remote_gpu.py), [5](demos/demo_5_remote_fpga_to_remote_gpu_triton.py), [benchmarks](benchmarks/README.md) |
+完整可运行用法见[无权重示例](demos/demo_decoder_callback.py)，
+安装、接口和版本说明见[共享包文档](packages/decoder-runtime/README.md)。
+原生符号保留 `evodecode_*` 名称以兼容现有调用方；这不表示包依赖 EvoDecode。
+回调执行超时的进程终止由调用方管理。共享包本身不提供远程部署或 GPU 调度。
 
-Once Backline is installed, you can verify your installation locally by compiling and executing a
-simple [local CPU-CPU interactions on a Linux CPU machine via memcpy](demos/demo_1_local_cpu_to_local_cpu_memcpy.py).
+## 仓库内容
 
-Two environment variables to be aware of when using Backline are:
+| 路径 | 用途 |
+| --- | --- |
+| [`packages/decoder-runtime/`](packages/decoder-runtime/README.md) | 本分支维护的共享运行包及协议测试 |
+| [`demos/demo_decoder_callback.py`](demos/demo_decoder_callback.py) | 不依赖模型的本地回调示例 |
+| [`demos/`](demos/README.md) | 保留的上游 CPU、GPU、RDMA 和 FPGA 演示 |
+| [`config/xbuild/`](config/xbuild/README.md) | 上游构建系统与目标机器配置 |
+| [`config/machines.toml`](config/machines.toml) | 硬件演示使用的机器配置 |
+| [`benchmarks/`](benchmarks/README.md) | 上游测量程序与使用说明 |
+| `data/`、`assets/` | 上游实验数据及配图 |
+| `scripts/` | 演示与测量辅助脚本 |
 
-* `CATALYST_ROOT`: the local Catalyst build tree, default `~/catalyst`.
-* `BACKLINE_BUNDLES`: the cross-built stacks the remote machines deploy, one directory per bundle
-  name. Defaults to what `config/xbuild` publishes.
+运行硬件演示时，按 [`INSTALL.md`](INSTALL.md) 准备对应的
+PennyLane/Catalyst、网络和设备，再按[演示说明](demos/README.md)执行。
+这些依赖与上面的独立回调示例不同。
+上游论文中的延迟测量属于其指定硬件和实验条件，不作为本分支或 EvoDecode 模型的性能承诺。
 
-## Authors
+## 开发与验证
 
-Backline is the work of [many contributors](https://github.com/PennyLaneAI/backline/graphs/contributors).
+在已准备好上述 Python 环境的仓库根目录执行：
 
-If you are doing research using Backline and PennyLane, please cite our papers:
+```bash
+python -m unittest discover -s packages/decoder-runtime/tests -v
+python demos/demo_decoder_callback.py
+make -C config/xbuild check
+make -C config/xbuild test
+```
+
+共享包测试覆盖分片、请求编号、队列容量、回调错误、线程与清理。
+构建系统测试检查构建规则；两者都不能替代实际硬件上的集成测试。
+
+`evobackline` 长期保留。相关开发使用独立功能分支，经测试和代码审查后通过 PR
+合入 `evobackline`。共享接口有变化时，在本仓库更新包版本，再由 EvoDecode 更新
+固定依赖并运行集成测试；协议变化还需同步调整调用方。
+参与开发前请阅读 [`AGENTS.md`](AGENTS.md) 中的构建注意事项。
+
+## 上游来源与许可
+
+本项目基于 [PennyLaneAI/backline](https://github.com/PennyLaneAI/backline)。
+本 fork 为 EvoDecode 维护的共享包不代表上游官方发布。
+保留的上游演示与测量资料对应论文：
+*Python in the front, party in the Backline: compiling quantum workloads across CPUs, GPUs, and FPGAs*。
+使用这些研究成果时请保留相应引用：
 
 ```bibtex
 @misc{lee2026,
@@ -130,9 +160,8 @@ If you are doing research using Backline and PennyLane, please cite our papers:
 }
 ```
 
-## License and acknowledgements
+代码遵循 [Apache License 2.0](LICENSE)。共享包的来源说明见
+[NOTICE](packages/decoder-runtime/src/backline_decoder_runtime/NOTICE)。
 
-Backline is **free** and **open source**, released under the Apache License, Version 2.0.
-
-AMD, AMD Ryzen, AMD Ryzen Threadripper, AMD Instinct, AMD ROCm, Radeon, Versal, and Xilinx
-are trademarks of Advanced Micro Devices, Inc.
+AMD、AMD Ryzen、AMD Ryzen Threadripper、AMD Instinct、AMD ROCm、Radeon、Versal 和
+Xilinx 是 Advanced Micro Devices, Inc. 的商标。
