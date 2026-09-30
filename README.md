@@ -24,6 +24,19 @@ PennyLane/Catalyst 提供。本仓库保留上游的硬件演示、构建配置�
 它不解释数据对应哪种模型，也不决定模型如何分块推理。
 旧的 EvoDecode 专用演示和模型适配器已经移除，本仓库不分发模型权重或本地实验结果。
 
+## 结构与调用流程
+
+![EvoBackline 架构与请求生命周期](assets/evobackline-architecture.png)
+
+[查看高清原图](assets/evobackline-architecture.png)。上图展示当前 EvoDecode 的本地
+`memcpy` 接入：Controller 发送数据，共享包重组分片、排队并调用 EvoDecode 的
+`predict` 回调，完成后按请求编号取回结果。CPU Coprocessor 承接回调，AQ2 的
+张量计算仍在 GPU 上执行；权重和 RT 跨块状态由 EvoDecode 管理。
+
+图示省略了返回路径上的工作线程和传输层细节。传输分片每次携带 8 字节，
+与模型的帧块不同；RT 中间块返回的 0 是占位确认，最终块才返回 shot 预测。
+本地无权重示例直接调用 C 入口；RDMA/FPGA 属于另行配置的上游硬件演示。
+
 ## 先运行无权重示例
 
 需要 **Linux、Python 3.11 或更新版本，以及支持 C++20 的 `c++` 编译器**。
