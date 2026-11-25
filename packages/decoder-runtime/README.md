@@ -44,6 +44,8 @@ library = build_coprocessor(Path("run/libdecoder.so"))
 print(library)
 ```
 
+同一进程中开启多个会话时，为每个会话使用单独的库路径和 C 函数名。将函数名传给 `build_coprocessor(path, entry_symbol=name)`，并用同一个 `name` 创建该会话的 `CoprocessorFunction`。每个会话通过自己的库句柄注册回调、管理队列。省略 `entry_symbol` 时，默认入口为 `evodecode_coprocessor`。
+
 <a id="两个仓库如何使用"></a><a id="职责边界"></a>
 
 ## 在 EvoDecode 中部署

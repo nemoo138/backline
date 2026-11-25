@@ -2,5 +2,5 @@
 from .native_callback import CALLBACK, NativeCallback
 from .build import build_coprocessor
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 __all__ = ["CALLBACK", "NativeCallback", "build_coprocessor"]

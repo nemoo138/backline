@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "backline-decoder-runtime"
-version = "0.1.0"
+version = "0.1.1"
 description = "Shared local decoder queue and callback runtime maintained by the Backline fork"
 readme = "README.md"
 requires-python = ">=3.11"

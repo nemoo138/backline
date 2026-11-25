@@ -65,7 +65,7 @@ python -m pip install --no-deps --no-build-isolation -e ./packages/decoder-runti
 
 ```bash
 python -m pip wheel --no-deps --no-build-isolation ./packages/decoder-runtime --wheel-dir ./dist
-python -m pip install --force-reinstall --no-deps ./dist/backline_decoder_runtime-0.1.0-py3-none-any.whl
+python -m pip install --force-reinstall --no-deps ./dist/backline_decoder_runtime-0.1.1-py3-none-any.whl
 python -m unittest discover -s packages/decoder-runtime/tests -v
 python demos/demo_decoder_callback.py
 ```
@@ -74,7 +74,7 @@ python demos/demo_decoder_callback.py
 
 ## 版本与发布
 
-此分支在提交 `d89284e` 中声明 runtime `0.1.0`。[EvoDecode](https://github.com/qhub-cn/evo-decode) 提交 `ceb9776` 的依赖清单与之匹配。
+当前 runtime 版本为 `0.1.1`。在 EvoDecode 中安装时，使用其 `backline` 可选依赖指定的版本。
 发布时在你自己的 Backline fork 中审核、提交、测试，再按 Git 规范创建语义化版本
 附注 tag，并把 wheel 和 SHA256 上传到对应 Release。不要使用官方项目的发布地址
 冒充自己的包，也不要覆盖已经发布的同版本文件。
@@ -83,8 +83,8 @@ python demos/demo_decoder_callback.py
 CPU 清单及安装脚本中的期望版本，安装新的 wheel 后运行集成测试。涉及协议变化时
 需要同时更新调用方，不能只改版本号。
 
-测试：`tests/test_protocol.py` 和从演示迁入的 `tests/test_adapter.py` 共 15 项，
-验证分片、ABI、队列容量、shot ID、回调错误、线程与清理。EvoDecode 保留自己的集成测试。
+测试：`tests/test_protocol.py` 和从演示迁入的 `tests/test_adapter.py` 共 17 项，
+验证分片、ABI、会话入口符号及其命名、队列容量、shot ID、回调错误、线程与清理。EvoDecode 保留自己的集成测试。
 源码继承 Apache-2.0 许可，见 [LICENSE](../packages/decoder-runtime/LICENSE) 和包内 [NOTICE](../packages/decoder-runtime/src/backline_decoder_runtime/NOTICE)。
 
 [构建元数据](../packages/decoder-runtime/pyproject.toml) · [协议测试](../packages/decoder-runtime/tests/test_protocol.py) · [回调测试](../packages/decoder-runtime/tests/test_adapter.py)

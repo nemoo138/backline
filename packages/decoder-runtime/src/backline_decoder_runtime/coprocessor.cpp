@@ -67,7 +67,7 @@ extern "C" int evodecode_start_pipeline(std::size_t limit) {
     return 0;
 }
 
-extern "C" void evodecode_stop_pipeline() {
+static void stop_pipeline() {
     {
         std::lock_guard<std::mutex> guard(mutex);
         stopping = true;
@@ -81,13 +81,19 @@ extern "C" void evodecode_stop_pipeline() {
     clear_request();
 }
 
+extern "C" void evodecode_stop_pipeline() { stop_pipeline(); }
+
 extern "C" void evodecode_set_callback(Decode callback) {
-    evodecode_stop_pipeline();
+    stop_pipeline();
     std::lock_guard<std::mutex> guard(mutex);
     decode = callback;
 }
 
-extern "C" std::size_t evodecode_coprocessor(
+#ifndef EVODECODE_ENTRY_SYMBOL
+#define EVODECODE_ENTRY_SYMBOL evodecode_coprocessor
+#endif
+
+extern "C" std::size_t EVODECODE_ENTRY_SYMBOL(
     const void *in, std::size_t in_len, void *out, std::size_t out_cap, void *) {
     std::unique_lock<std::mutex> lock(mutex);
     if (!out || out_cap < 8) return 0;

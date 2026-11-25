@@ -37,6 +37,22 @@ class BacklineProtocolTests(unittest.TestCase):
         self.assertEqual(self.message(2, bytes(8))[1], 0)
         return self.message(3, struct.pack("<Q", shot))
 
+    def test_build_exports_requested_entry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            library = Path(directory) / "session.so"
+            build_coprocessor(library, entry_symbol="session_decoder")
+            bridge = ctypes.CDLL(str(library))
+            self.assertIsNotNone(bridge.session_decoder)
+            with self.assertRaises(AttributeError):
+                getattr(bridge, "evodecode_coprocessor")
+
+    def test_reject_non_identifier_entry_before_build(self):
+        with tempfile.TemporaryDirectory() as directory:
+            library = Path(directory) / "invalid.so"
+            with self.assertRaisesRegex(ValueError, "C identifier"):
+                build_coprocessor(library, entry_symbol="session-decoder")
+            self.assertFalse(library.exists())
+
     def test_full_queue_duplicate_id_and_unknown_collection(self):
         with NativeCallback(self.bridge, lambda data: 1, queue_depth=1):
             self.assertEqual(self.submit(0), (0, 0))
