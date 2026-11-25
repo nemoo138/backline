@@ -1,90 +1,57 @@
-# backline-decoder-runtime
+# backline-decoder-runtime 用户指南
 
-Backline fork 维护的独立 Python 包，版本 **0.1.0**。负责 C++ 分片重组、有界任务队列、
-Python 回调生命周期及原生库编译。包本身仅依赖 Python 标准库；编译运行需要 Linux
-和 C++20 编译器。它不是官方 PennyLane/Catalyst 的替代品，也不依赖 EvoDecode。
+这个 Python 包接收字节请求，重组分片并通过本地队列调用应用提供的函数。回调接收 `bytes`，返回 0 或 1。下面的例子提交两个 25 字节请求，计算字节和的奇偶性。
 
-## 两个仓库如何使用
+<a id="构建与安装"></a>
 
-- Backline 的无权重回调示例从本包导入 `NativeCallback` 和 `build_coprocessor`。
-- EvoDecode 固定依赖 `backline-decoder-runtime==0.1.0`，负责数据、解码与实验管理。
-- `src/backline_decoder_runtime/coprocessor.cpp` 是共享队列的唯一源码位置。
+## 运行第一个回调
+
+需要 **Linux、Python 3.11 或更新版本，以及支持 C++20 的 `c++` 编译器**。
+以下命令从本仓库根目录执行；CPU 集成环境目前验证的是 Linux x86_64 / Python 3.12。
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install 'setuptools>=77' wheel
+python -m pip install --no-deps --no-build-isolation ./packages/decoder-runtime
+python demos/demo_decoder_callback.py
+```
+
+预期输出：
+
+```text
+request 0: 25 bytes, result=0
+request 1: 25 bytes, result=1
+PASS: fragmentation, queue, callback, and result collection
+```
+
+[示例源码](../../demos/demo_decoder_callback.py)会在临时目录编译 C++ 库，
+把两个请求分片提交到队列，再通过计算字节和的奇偶性检查回调结果。
+运行结束后清理临时编译文件，不需要模型、GPU 或 PennyLane。
+
+这个示例直接调用原生 C 接口，只验证分片、队列和回调。
+它不经过 Catalyst QNode，也不能证明 RDMA、FPGA 或 GPU 推理已经可用。
+
+## 在 Python 中接入应用
+
+`build_coprocessor(path)` 编译原生库；`CALLBACK` 描述 ctypes 回调签名；`NativeCallback` 管理当前进程中的函数绑定、结果和错误。应用负责进程超时及模型资源的释放。安装 wheel 后首次使用仍需要 Linux 和 C++20 编译器。
 
 ```python
 from pathlib import Path
-from backline_decoder_runtime import NativeCallback, build_coprocessor
+from backline_decoder_runtime import build_coprocessor
 
 library = build_coprocessor(Path("run/libdecoder.so"))
+print(library)
 ```
 
-`NativeCallback` 接口与原演示一致，供同进程 C ABI 回调使用；外层进程管理者负责
-超时终止。原生库在调用者的运行目录编译，不写入安装目录。wire ABI 仍使用
-`evodecode_*` 符号，保持现有 Controller 兼容。
+<a id="两个仓库如何使用"></a><a id="职责边界"></a>
 
-## 职责边界
+## 在 EvoDecode 中部署
 
-本包只管理传输请求的分片、队列、回调执行和清理。调用者提供接收 bytes 并返回
-二进制结果的函数；本包不加载 checkpoint，不构造 AQ2/Ising 模型，不生成纠错数据。
-EvoDecode 管理权重、模型推理、数据转换及实验报告，Backline 不再另存其模型包。
-旧 demo 1b、模型专用适配器及运行记录已移除；模型文件集中保存在 EvoDecode。
-本包与测试无需这些历史文件。
-官方硬件示例继续保留。`evodecode_*` C 符号是已有 ABI 名称，不表示反向依赖
-EvoDecode，也不在本次整理中重命名。
+先在使用的 EvoDecode 版本中查看 `pyproject.toml` 的 `backline` 依赖，再取得相同版本的 runtime wheel，交给该版本的 `tools/install_backline_cpu.py --runtime-wheel <wheel 路径>`。模型权重、帧和 `Deployment` 参数由 EvoDecode 用户手册说明。上游 RDMA 与 FPGA 演示另有安装步骤。
 
-无模型示例：`python demos/demo_decoder_callback.py`（从仓库根目录运行）。
+[EvoDecode 项目与用户文档](https://github.com/qhub-cn/evo-decode) · [源码构建与验收](../../docs/developer.md) · [硬件演示安装](../../INSTALL.md)
 
-## 构建与安装
+<a id="日常开发"></a><a id="版本与发布"></a><a id="本次验证2026-09-28"></a>
 
-在包含 setuptools>=77 和 wheel 的环境中，从 Backline 仓库根目录执行：
-
-```bash
-python -m pip wheel --no-deps --no-build-isolation \
-  ./packages/decoder-runtime --wheel-dir ./dist
-python -m pip install ./dist/backline_decoder_runtime-0.1.0-py3-none-any.whl
-python -m unittest discover -s packages/decoder-runtime/tests -v
-```
-
-然后在 EvoDecode 仓库根目录执行：
-
-```bash
-python3.12 tools/install_backline_cpu.py \
-  --runtime-wheel ../backline/dist/backline_decoder_runtime-0.1.0-py3-none-any.whl
-```
-
-两个仓库不必放在相邻目录；将参数替换为实际 wheel 路径即可。
-此 wheel 包含跨架构可读的 Python/C++ 源码，实际运行仍限定 Linux；CPU 集成环境
-目前只验证 Linux x86_64 / Python 3.12。
-
-## 日常开发
-
-开发者可在两项目共用的开发环境中执行：
-
-```bash
-python -m pip install --no-deps --no-build-isolation -e ./packages/decoder-runtime
-```
-
-源码修改即可被新的 Python 进程使用；已编译原生库在下一次运行时重新生成。
-不要把开发环境的 editable 路径作为用户安装依赖。
-
-## 版本与发布
-
-本次只准备本地 0.1.0 wheel，尚未上传到 PyPI 或 GitHub Release。
-发布时在你自己的 Backline fork 中审核、提交、测试，再按 Git 规范创建语义化版本
-附注 tag，并把 wheel 和 SHA256 上传到对应 Release。不要使用官方项目的发布地址
-冒充自己的包，也不要覆盖已经发布的同版本文件。
-
-共享代码有修改时，更新本仓库包版本并测试；EvoDecode 更新 optional dependency、
-CPU 清单及安装脚本中的期望版本，安装新的 wheel 后运行集成测试。涉及协议变化时
-需要同时更新调用方，不能只改版本号。
-
-测试：`tests/test_protocol.py` 和从演示迁入的 `tests/test_adapter.py` 共 15 项，
-验证分片、ABI、队列容量、shot ID、回调错误、线程与清理。EvoDecode 保留自己的集成测试。
-源码继承 Apache-2.0 许可；见 LICENSE 和包内 NOTICE。
-
-## 本次验证（2026-09-28）
-
-0.1.0 wheel 已构建并供两个项目安装。包协议测试 3 项、Backline 原演示适配测试
-12 项、EvoDecode CPU 集成测试 26 项通过。错误版本 wheel 会在创建环境前被
-EvoDecode 安装脚本拒绝。wheel 尚未上传；正式发布应从干净源码构建，保留 SHA256。
-
-Backline 构建检查：`make check` 通过；补齐系统 rsync 后，`make test` 为 169 通过、0 失败、2 跳过（非 macOS 无法测 Mach-O；本机有 clang，无法模拟缺失工具链）。两个独立安装包在仓库外完成 32-shot CPU 示例，pip check 通过。
+[开发和历史验证记录](../../docs/developer.md)

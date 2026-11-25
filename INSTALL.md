@@ -1,6 +1,6 @@
 # Installation
 
-Install once, then follow [`demos/README.md`](demos/README.md) to run the demos.
+For the standalone callback package, start with the [runtime user guide](packages/decoder-runtime/README.md). For the upstream CPU, RDMA, GPU and FPGA demos, install the applicable tier below, then follow [`demos/README.md`](demos/README.md) to run the demos.
 
 The demos come in four tiers. Each adds hardware to the one before it, so install down to the
 tier you have and stop there.

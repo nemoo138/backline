@@ -1,8 +1,12 @@
 # Working in this repository — instructions for AI agents
 
-Humans: this is also a fair summary. [`INSTALL.md`](INSTALL.md) is the fuller version.
+## Select the affected component
 
-## What this is
+- For EvoDecode integration, start in `packages/decoder-runtime/`. Queue and wire ABI changes belong in `coprocessor.cpp`; callback binding and cleanup in `native_callback.py`. The consuming project owns QECFrame conversion, model weights and inference.
+- For runtime changes, run the [protocol, callback and wheel checks](docs/developer.md#构建与验收). Record the exact package version. A wire or lifecycle change also requires an EvoDecode integration check with its matching wheel.
+- For hardware demos, use [INSTALL.md](INSTALL.md) and the build notes below. For build-system changes, read [config/xbuild/AGENTS.md](config/xbuild/AGENTS.md) before editing that tree.
+
+## Upstream hardware experiments
 
 Accompanying material for a manuscript, and the machinery to reproduce its measurements: a
 QEC decode offloaded from a controller to a coprocessor over an RDMA fabric.
@@ -40,7 +44,7 @@ cd config/xbuild && make doctor TARGET=example-native && make sysroot TARGET=exa
 |---|---|---|
 | `config/xbuild/{targets,components,bundles}/` | inert `KEY=value` descriptions | yes — this is where work happens |
 | `config/xbuild/{mk,tools,sysroot}/` | the generic engine | rarely, and read `config/xbuild/AGENTS.md` first |
-| `demos/`, `benchmarks/`, `data/`, `paper/` | the experiments and their results | as asked |
+| `demos/`, `benchmarks/`, `data/` | the experiments and their results | as asked |
 | `scripts/` | helpers for running the above | as asked |
 | `config/xbuild/build/` | generated | **never** — `rm -rf build` must stay a complete reset |
 
@@ -88,7 +92,7 @@ Each of these was met in practice, and each fails in a way that points somewhere
   in or beside this repository**, so those citations are provenance, not somewhere to look.
   The descriptions here are the only copy.
 
-## Before you say a change works
+## Before you report a build-system change
 
 ```bash
 cd config/xbuild
