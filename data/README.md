@@ -39,7 +39,14 @@ print(first["sample"], first["rtt_cycles"], first["rtt_us"])
 0 928 4.6400
 ```
 
-前两行记录时钟频率和实验配置。在这次实验中，主机逐轮发起通信，控制器硬件发送请求并检测响应，协处理器在 CPU 上执行回显。最后一行的 `0` 是样本编号，`928` 是该次往返经过的时钟周期数。200 MHz 表示每微秒 200 个周期，因此本次往返耗时为 **928 ÷ 200 = 4.64 微秒**。要分析该配置的延迟分布，应读取整份文件。
+前两行给出时钟频率和实验配置。样本编号从 0 开始，CPU 收到请求后执行回显。正文和附录都测量单次往返，但两种控制方式写出的时间单位不同。
+
+| 归档文件 | 谁发起每一轮 | 首条样本 | 换算为微秒 |
+| --- | --- | --- | --- |
+| `data-main-text/sw-for-loop.cpu-echo.csv` | 主机软件 | `sample=0, rtt_cycles=928, rtt_us=4.6400` | 200 MHz 时每微秒有 200 个周期，928 ÷ 200 = **4.64 µs** |
+| `data-appendix/hw-for-loop.cpu-echo.b2b.csv` | FPGA 连续发送 | `cycles=1056, ns=5280` | 每微秒有 1,000 纳秒，5,280 ÷ 1,000 = **5.28 µs** |
+
+表中每个数值只代表对应文件的第一轮。要比较两种配置的延迟分布，请使用各自的完整记录绘图。
 
 <a id="drawing-the-figures"></a>
 
@@ -61,15 +68,9 @@ make FLAGS='--logy'      # 本次绘图使用对数纵轴
 
 ## CSV 文件格式
 
-[bench.py](../benchmarks/bench.py) 为每组配置写出一个 `rtt_<coproc>_<ctrl>.csv`。文件开头的两行注释记录时钟频率、控制器模式和协处理器类型，后续每行对应一个样本。
+主机逐轮发起时，[bench.py](../benchmarks/bench.py) 默认在当前目录写出 `rtt_<coproc>_<ctrl>.csv`。`sample` 是轮次编号，`rtt_cycles` 和 `rtt_us` 分别以周期和微秒记录同一次往返。FPGA 逐轮发送时，板上 CSV 用 `cycles` 和 `ns` 记录同一次往返，行序即完成顺序。两种格式都以 `#` 开头的注释记录测量信息。
 
-| 字段 | 含义 |
-| --- | --- |
-| `sample` | 样本编号 |
-| `rtt_cycles` | 单次往返耗费的时钟周期数 |
-| `rtt_us` | 同一次往返的耗时，单位为微秒 |
-
-[sweep-bench.sh](../scripts/sweep-bench.sh) 可一次运行整组配置，将结果写入同一目录。绘图用的 Makefile 按 `YYYYMMDD` 匹配日期目录。归档时，将带时刻的测量目录（例如 `sweep-20260819-174612`）整理为 `20260819`，并在数据说明中保留测量时刻。
+[sweep-bench.sh](../scripts/sweep-bench.sh) 可批量运行多组配置。主机生成的 CSV 集中写入指定目录；FPGA 硬件循环的 CSV 需从板上取回。绘图用的 Makefile 按 `YYYYMMDD` 匹配日期目录。归档时，将带时刻的测量目录（例如 `sweep-20260819-174612`）整理为 `20260819`，并在数据说明中保留测量时刻。
 
 <a id="rtt-datasets"></a>
 

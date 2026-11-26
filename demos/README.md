@@ -1,75 +1,30 @@
-# Demos
+# 硬件演示
 
-These demos exercise quantum circuits, decoder inference, and communication on local or remote
-hardware. Start with demo 1 to check the local runtime, then choose a demo for your hardware.
+先按[硬件安装指南](../INSTALL.md#choose-your-hardware)准备环境并激活虚拟环境。**硬件演示 1（CPU）** 在本机运行 Steane 电路，适合检查 PennyLane、Catalyst、传输和解码器能否一起工作。要验证 Python 函数能否收到完整的字节请求，请运行共享包的[本地回调示例](../README.md#本地回调示例)。
 
-Assumes [`../INSTALL.md`](../INSTALL.md) is done, with the virtual environment active. That page
-lists what each tier requires; this README describes how to run them.
+| 演示 | 控制器 → 协处理器 | 通信 | 解码器 |
+| --- | --- | --- | --- |
+| [1](demo_1_local_cpu_to_local_cpu_memcpy.py) | 本机 CPU → 本机 CPU | 同一进程内存复制 | 预编译 Steane |
+| [1a](demo_1a_local_cpu_to_local_cpu_rdma.py) | 本机 CPU → 本机 CPU | 同一进程 RDMA | 预编译 Steane |
+| [2](demo_2_remote_cpu_to_remote_gpu_triton.py)、[2a](demo_2a_remote_cpu_to_remote_gpu_triton_runtime_calls.py) | 服务器 CPU → 服务器 GPU | 经同一台服务器的 RDMA 网卡 | Triton 编译的 qLDPC |
+| [3](demo_3_remote_cpu_to_remote_gpu.py) | 服务器 CPU → 服务器 GPU | 经同一台服务器的 RDMA 网卡 | 预编译 Steane |
+| [4](demo_4_remote_fpga_to_remote_gpu.py) | 远程 FPGA → 服务器 GPU | 跨主机 RDMA | 预编译 Steane |
+| [5](demo_5_remote_fpga_to_remote_gpu_triton.py) | 远程 FPGA → 服务器 GPU | 跨主机 RDMA | Triton 编译的 Steane |
 
-| | Controller | Coprocessor | Transport | Decoder | Tier |
-|---|---|---|---|---|---|
-| [1](demo_1_local_cpu_to_local_cpu_memcpy.py) | local CPU | local CPU | memcpy, within one process | Steane, precompiled | 1 |
-| [1a](demo_1a_local_cpu_to_local_cpu_rdma.py) | local CPU | local CPU | RDMA, within one process | Steane, precompiled | 2 |
-| [2](demo_2_remote_cpu_to_remote_gpu_triton.py) | remote CPU | remote GPU | RDMA, across one host's NIC | qLDPC, from Python | 3 |
-| [2a](demo_2a_remote_cpu_to_remote_gpu_triton_runtime_calls.py) | remote CPU | remote GPU | RDMA, across one host's NIC | qLDPC, from Python | 3 |
-| [3](demo_3_remote_cpu_to_remote_gpu.py) | remote CPU | remote GPU | RDMA, across one host's NIC | Steane, precompiled | 3 |
-| [4](demo_4_remote_fpga_to_remote_gpu.py) | remote FPGA | remote GPU | RDMA, between two machines | Steane, precompiled | 4 |
-| [5](demo_5_remote_fpga_to_remote_gpu_triton.py) | remote FPGA | remote GPU | RDMA, between two machines | Steane, from Python | 4 |
+<a id="queue-and-callback-example-for-evodecode"></a>
+<a id="running-demos"></a>
+<a id="tier-1--demo-1"></a>
 
-The RDMA/GPU demos have been tested with an AMD MI210 GPU, an mlx5 NIC (ConnectX-7)
-and a VPK120 board.
+## 硬件演示 1（CPU）
 
-Three machines appear in these demos:
-
-| | what it is | in [`../config/machines.toml`](../config/machines.toml) |
-|---|---|---|
-| this machine | where you launch. It compiles the program and drives the run | `[local]`, when it runs nodes itself |
-| the server | a remote x86-64 Linux machine with a GPU and an RDMA NIC | `[server]` |
-| the board | a VPK120 | `[vpk]` |
-
-Which machine runs which node:
-
-| demos | this machine | the server | the board | machines needed |
-|---|---|---|---|---|
-| 1, 1a | controller **and** coprocessor, both in this one process | — | — | one |
-| 2, 2a, 3 | compiling and launching | controller and coprocessor, as two processes, the syndrome crossing its NIC | — | two |
-| 4, 5 | compiling and launching | coprocessor | controller | three |
-
-From demo 2 onward this machine runs no node of its own: it compiles the program, ships each
-node's code to the machine that runs it, and starts the run.
-
-## Queue and callback example for EvoDecode
-
-For the standalone CPU queue and callback example, use the [runtime user guide](../packages/decoder-runtime/README.md#运行第一个回调). The numbered demos below exercise the upstream hardware integrations.
-
-## Running demos
-
-For demos 1, 1a and 2–5, run from the `demos` directory to import `placement.py`:
+以下命令从仓库根目录执行。后续演示命令均在 `demos/` 目录运行。
 
 ```bash
 cd demos
 ./demo_1_local_cpu_to_local_cpu_memcpy.py
 ```
 
-Demos 1, 1a and 2–5 use the following paths. Their defaults are in the `[paths]` table of
-[`../config/machines.toml`](../config/machines.toml), and the environment variables override them,
-so set a variable only where the default does not match your layout.
-
-| | needed by | what it points at |
-|---|---|---|
-| `CATALYST_ROOT` | demos 1 and 1a | the Catalyst tree. They load the Steane decoder from `$CATALYST_ROOT/runtime/build/lib` |
-| `BACKLINE_BUNDLES` | demos 2 to 5 | the directory holding the bundles, one entry per bundle name. Each remote node deploys the bundle named there. A relative path resolves against the repository root |
-
-They are read on every run, not once at install, so export them from your shell profile or set them
-on each command.
-
-## Tier 1 — demo 1
-
-```bash
-./demo_1_local_cpu_to_local_cpu_memcpy.py
-```
-
-Ten three-bit rows, all zeros:
+每次采样都经过多轮 Steane 测量、解码和纠正，每次解码都要往返协处理器一次。控制器使用 `null.qubit`，因此预期输出为 10 行三位的零。看到下列输出且程序正常结束，说明这次电路、传输和解码器调用均已完成。
 
 ```text
 samples: [[0 0 0]
@@ -78,27 +33,21 @@ samples: [[0 0 0]
  [0 0 0]]
 ```
 
-The controller runs on `null.qubit`, which returns zeros rather than simulating. If we reach that
-output, the transport, the runtime and the decoder are all in place. An exception means it failed.
+<a id="tier-2--demo-1a"></a>
 
-What this checks is that the whole stack ran. The circuit is written in logical qubits and run
-encoded with the Steane code, so each shot goes through several rounds of measure, decode and
-correct, and every decode is a round trip to the coprocessor.
-
-## Tier 2 — demo 1a
+## 在本机验证 RDMA（演示 1a）
 
 ```bash
 ./demo_1a_local_cpu_to_local_cpu_rdma.py
 ```
 
-The same ten rows, over a real RDMA round trip with both ends on one machine.
+预期仍是 10 行零。演示 1a 的请求和响应经本机 RDMA 设备往返。设备由 `machines.toml` 的 `[local]` 指定，例如 `config = "dev=rxe0;gid=1"`。用 `ibv_devinfo` 和 `/sys/class/infiniband/<dev>/ports/1/gids/` 查找当前设备的 IPv4 RoCE v2 条目，再填写它的 GID 索引。
 
-The device comes from the `[local]` table of [`../config/machines.toml`](../config/machines.toml),
-which carries it as `config = "dev=rxe0;gid=1"`. The `gid` is an index into that device's GID table,
-and the entry you want is its IPv4 RoCE v2 one, which sits at a different index on different
-devices. `ibv_devinfo` and `/sys/class/infiniband/<dev>/ports/1/gids/` report which.
+<a id="tier-3--gpu-demos"></a>
 
-## Tier 3 — GPU demos
+## 在服务器 GPU 上解码（演示 2、2a、3）
+
+先运行演示 3。它使用预编译的 Steane 解码器，可以先验证远程传输，预期输出仍为 10 行零。
 
 ```bash
 ./demo_3_remote_cpu_to_remote_gpu.py
@@ -106,14 +55,7 @@ devices. `ibv_devinfo` and `/sys/class/infiniband/<dev>/ports/1/gids/` report wh
 ./demo_2a_remote_cpu_to_remote_gpu_triton_runtime_calls.py
 ```
 
-Start with demo 3: it loads a precompiled Steane decoder, so it exercises the fabric without
-involving Triton.
-
-Demo 3 prints ten zero rows, as above.
-
-Demo 2 checks the decoding rather than sampling it. It applies each of I, X, Y and Z to every data
-qubit in turn and prints two mean stabilizer values per error, which are `1.0` when every error was
-corrected:
+演示 2 依次对每个数据量子比特施加 I、X、Y、Z，每种错误输出两个稳定子均值。全部正确纠正时，四行均为 1：
 
 ```text
 I (Array(1., dtype=float64), Array(1., dtype=float64))
@@ -122,60 +64,61 @@ Y (Array(1., dtype=float64), Array(1., dtype=float64))
 Z (Array(1., dtype=float64), Array(1., dtype=float64))
 ```
 
-Demo 2a computes what demo 2 computes and prints the same four lines, with `qp.backline.decode`
-replaced by the runtime calls it lowers to: `get_session`, `stage_payload`, `post`, `collect`. Read
-it alongside demo 2 to see what the frontend does on your behalf.
+演示 2a 执行相同计算，把 `qp.backline.decode` 展开成 `get_session`、`stage_payload`、`post`、`collect` 四个调用。可用同样的四行输出核对结果。
 
-Demos 2, 2a and 5 compile their decoder with Triton on the machine you launch from, for whichever
-card the `platform=` string names:
+演示 2、2a 和 5 在构建机上用 Triton 编译解码器。按目标 GPU 填写 `platform`（后端、架构、warp 大小），例如 MI210 使用 `hip:gfx90a:64`，NVIDIA 的一个示例为 `cuda:80:32`。构建机需安装 Triton 和对应的 `hipcc` 或 `nvcc`。
 
-```python
-platform="hip:gfx90a:64"        # backend:arch:warp_size. This is for AMD MI210
-platform="cuda:80:32"           # an NVIDIA card, where the warp size changes too
-```
+<a id="tier-4--fpga-demos"></a>
 
-The string alone decides the architecture. That machine requires Triton and the compiler matching
-the backend the string names, `hipcc` or `nvcc`.
-
-## Tier 4 — FPGA demos
+## 从 FPGA 向 GPU 提交请求（演示 4、5）
 
 ```bash
 ./demo_4_remote_fpga_to_remote_gpu.py
 ./demo_5_remote_fpga_to_remote_gpu_triton.py
 ```
 
-The controller runs on the VPK120, whose engine posts the syndrome and detects the reply in
-hardware, so the host CPU stays out of the round trip. Both print ten zero rows.
+VPK120 上的控制器在硬件中发送请求并检测响应，服务器 GPU 解码，主机 CPU 不参与这段往返。两个演示均输出 10 行零。
 
-## Reference logs
+<a id="pointing-it-at-your-own-machines"></a>
 
-Captured runs for demos 1, 1a and 2–5 live in [`expected_logs/`](expected_logs), with the driver output, each
-executor's log, and a provenance file recording the three commits it was taken at. To refresh one,
-from the repository root:
+## 配置机器和文件路径
+
+本仓库记录的 RDMA/GPU 演示使用 AMD MI210、ConnectX-7 网卡及 VPK120 开发板。换用自己的机器时，编辑 [machines.toml](../config/machines.toml) 中的主机、端口、设备和部署路径。`demos/placement.py` 和 `benchmarks/placement.py` 都读取这份配置。
+
+| 演示 | 本地构建机 | 远程服务器（`[server]`） | 开发板（`[vpk]`） |
+| --- | --- | --- | --- |
+| 1、1a | 编译、启动，同时运行控制器和协处理器（`[local]`） | — | — |
+| 2、2a、3 | 编译、分发并启动 | 控制器和协处理器各占一个进程 | — |
+| 4、5 | 编译、分发并启动 | 运行协处理器 | 运行控制器 |
+
+每次运行都读取 `[paths]`。默认值与本机目录不符时，用下列环境变量覆盖，可在当前 shell 或 shell 配置中设置。
+
+| 环境变量 | 演示 | 指向的目录 |
+| --- | --- | --- |
+| `CATALYST_ROOT` | 1、1a | Catalyst 源码树，Steane 解码器从 `$CATALYST_ROOT/runtime/build/lib` 加载 |
+| `BACKLINE_BUNDLES` | 2 至 5，含 2a | 部署包目录，每个包名对应一个子目录。相对路径从仓库根目录解析 |
+
+<a id="reference-logs"></a>
+
+## 核对运行结果
+
+[参考日志](expected_logs/README.md)记录了各演示的启动输出、执行器日志和对应提交。要用一次新的运行替换演示 1 的参考日志，在仓库根目录执行：
 
 ```bash
 ./scripts/run-demo.sh demo_1_local_cpu_to_local_cpu_memcpy.py
 ```
 
-## Pointing it at your own machines
+<a id="words-used-throughout"></a>
 
-For demos 1, 1a and 2–5, hosts, ports, devices and deployment paths are in
-[`../config/machines.toml`](../config/machines.toml), which `demos/placement.py` and
-`benchmarks/placement.py` read and turn into one node per entry. Editing that file is what runs the
-demos on your own hardware.
+## 术语
 
-## Words used throughout
+| 名称 | 在硬件演示中的含义 |
+| --- | --- |
+| 控制器（controller） | 运行电路、发送解码请求 |
+| 协处理器（coprocessor） | 运行解码器、返回响应 |
+| 综合征（syndrome）与纠正值（correction） | 控制器发送 8 字节综合征，解码器返回 8 字节纠正值 |
+| 通信网络（fabric） | 控制器与协处理器间的 RDMA 网络，与登录主机使用的网络分开 |
+| 机器（machine）与节点（node） | 机器是配置中的主机或开发板，节点是分配到机器上的控制器或协处理器角色 |
+| 执行器（executor） | Backline 在远程机器上启动的进程，用来运行节点工作流 |
 
-| | |
-|---|---|
-| controller | the role that runs the circuit and sends decode requests |
-| coprocessor | the role that processes decode requests and returns replies |
-| syndrome | the 8-byte message sent by the controller |
-| correction | the 8-byte message returned by the coprocessor |
-| decoder | a function accepting the syndrome and returning the correction |
-| fabric | the RDMA network the two talk over, separate from the network used to log into a machine |
-| machine | one of the machines available, described in [`../config/machines.toml`](../config/machines.toml) |
-| node | one role, controller or coprocessor, placed on one machine |
-| executor | the process backline starts on a remote machine to execute a controller or coprocessor workflow |
-
-Timing these round trips is [`../benchmarks/README.md`](../benchmarks/README.md).
+需要测量一次往返耗时多久时，使用[基准测试](../benchmarks/README.md)。

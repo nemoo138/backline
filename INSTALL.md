@@ -2,13 +2,13 @@
 
 <a id="installation"></a>
 
-仅运行本地 Python 回调时，按[runtime 用户指南](packages/decoder-runtime/README.md)安装即可。要复现上游硬件演示，先按下表准备环境，再按[演示指南](demos/README.md)运行相应示例。
+要验证字节分片、队列和 Python 回调，运行首页的[本地回调示例](README.md#本地回调示例)。本页介绍上游硬件演示：从单机 CPU 上运行 Steane 电路开始，再按需要增加 RDMA、GPU 或 FPGA。
 
 <a id="choose-your-hardware"></a>
 
 ## 按硬件选择安装步骤
 
-如果只有一台 Linux CPU 主机，从[使用预编译 wheel 运行演示 1](#from-wheel)开始。更高档位需要在上一档环境的基础上增加相应设备和工具。
+如果只有一台 Linux CPU 主机，从[硬件演示 1（CPU）的预编译 wheel 安装步骤](#from-wheel)开始。更高档位需要在上一档环境的基础上增加相应设备和工具。
 
 | 安装档位 | 通信路径 | 所需环境 | 演示 |
 | --- | --- | --- | --- |
@@ -109,7 +109,9 @@ export BACKLINE_BUNDLES=~/bundles
 
 <a id="tier-1--demo-1"></a>
 
-## 第 1 档：单机 CPU 演示 1
+<a id="第-1-档单机-cpu-演示-1"></a>
+
+## 硬件演示 1（CPU）
 
 <a id="system-packages"></a>
 

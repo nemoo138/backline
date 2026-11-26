@@ -4,22 +4,18 @@ EvoBackline 提供 `backline-decoder-runtime`。它把应用提交的字节分�
 
 ![编号 0 的请求分成四片，经 Backline 重组为 25 字节并排队。Python 回调计算字节和的奇偶性，应用按编号领取结果 0。](assets/request-round-trip.svg)
 
-<a id="接入-evodecode"></a>
+<a id="试用本地回调"></a><a id="先运行无权重示例"></a><a id="接口与使用限制"></a>
 
-| 你想做什么 | 从哪里开始 |
-| --- | --- |
-| 在本机验证队列和 Python 回调 | [运行 CPU 示例](#试用本地回调)，源码在 [packages/decoder-runtime/](packages/decoder-runtime/) |
-| 用 EvoDecode 回放已有帧或实时测量 | [EvoDecode 部署入口](https://github.com/qhub-cn/evo-decode#backline)，配套 SDK 源码中的手册为 `docs/user/deployment.md` |
-| 复现上游 CPU、RDMA、GPU 或 FPGA 演示 | [选择硬件环境](INSTALL.md#choose-your-hardware)后运行 [demos/](demos/)。测量程序在 [benchmarks/](benchmarks/)，记录在 [data/](data/) |
+## 本地回调示例
 
-<a id="先运行无权重示例"></a><a id="接口与使用限制"></a>
+准备一台 Linux 主机、Python 3.11 或更高版本，以及支持 C++20 的 `c++` 编译器。示例启动时会用这个编译器把包内的队列源码编译成临时共享库。普通 CPU 即可运行。
 
-## 试用本地回调
-
-在 Linux、Python 3.11+ 的虚拟环境中准备支持 C++20 的 `c++` 编译器。把下方路径换成本地 wheel 的位置，安装后可从任意空目录运行。
+从仓库根目录安装并运行：
 
 ```bash
-python -m pip install ./backline_decoder_runtime-0.1.1-py3-none-any.whl
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install ./packages/decoder-runtime
 python -m backline_decoder_runtime.demo
 ```
 
@@ -29,7 +25,16 @@ request 1: 25 bytes, result=1
 PASS: fragmentation, queue, callback, and result collection
 ```
 
-两个结果是各自 25 个字节的和对 2 取余。分片如何重组、回调收到什么，见[用户指南](packages/decoder-runtime/README.md#运行第一个回调)。
+回调计算 25 个字节之和的奇偶性。两条请求只差一个字节，所以第一条返回 0，第二条返回 1。`PASS` 表示程序核对了回调收到的字节和按编号领取的结果。
+
+<a id="接入-evodecode"></a>
+
+| 接下来想做什么 | 从哪里开始 |
+| --- | --- |
+| 换成自己的 Python 回调 | [回调的输入、返回值和异常](packages/decoder-runtime/README.md#在-python-中接入应用) |
+| 用 EvoDecode 回放已有帧或实时测量 | [EvoDecode 部署手册](https://github.com/qhub-cn/evo-decode/blob/main/docs/user/deployment.md) |
+| 在本机运行 Steane 解码电路 | [硬件演示 1（CPU）](INSTALL.md#from-wheel)，使用 PennyLane 和 Catalyst |
+| 复现论文中的往返延迟 | [读取归档样本](data/README.md#read-one-recorded-round-trip)或[采集新数据](benchmarks/README.md) |
 
 <a id="与-evodecode-的分工"></a><a id="结构与调用流程"></a><a id="仓库内容"></a><a id="开发与验证"></a>
 
