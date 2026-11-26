@@ -2,13 +2,15 @@
 
 EvoBackline 提供 `backline-decoder-runtime`。它把应用提交的字节分片重组成请求，排队调用 Python 函数，再按请求编号返回结果。EvoDecode 使用它做回放和实时解码。
 
+![编号 0 的请求分成四片，经 Backline 重组为 25 字节并排队。Python 回调计算字节和的奇偶性，应用按编号领取结果 0。](assets/request-round-trip.svg)
+
 <a id="接入-evodecode"></a>
 
 | 你想做什么 | 从哪里开始 |
 | --- | --- |
-| 在本机验证队列和 Python 回调 | 运行下方的 CPU 示例 |
+| 在本机验证队列和 Python 回调 | [运行 CPU 示例](#试用本地回调)，源码在 [packages/decoder-runtime/](packages/decoder-runtime/) |
 | 用 EvoDecode 回放已有帧或实时测量 | [EvoDecode 部署入口](https://github.com/qhub-cn/evo-decode#backline)，配套 SDK 源码中的手册为 `docs/user/deployment.md` |
-| 复现上游 CPU、RDMA、GPU 或 FPGA 演示 | [按现有硬件选择安装步骤](INSTALL.md#choose-your-hardware) |
+| 复现上游 CPU、RDMA、GPU 或 FPGA 演示 | [选择硬件环境](INSTALL.md#choose-your-hardware)后运行 [demos/](demos/)。测量程序在 [benchmarks/](benchmarks/)，记录在 [data/](data/) |
 
 <a id="先运行无权重示例"></a><a id="接口与使用限制"></a>
 

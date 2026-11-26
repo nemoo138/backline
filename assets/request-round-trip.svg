@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 800 390" width="800" height="390" role="img" aria-labelledby="title desc">
+  <title id="title">25 字节请求的往返</title>
+  <desc id="desc">应用为编号 0 的请求发送四个 8 字节分片，末片有一个有效字节。Backline 重组 25 字节并排队，Python 回调计算字节和对 2 取余。应用按编号 0 领取结果 0。</desc>
+  <style>
+    svg {
+      --paper: #f7f7f1; --ink: #152f3b; --muted: #405d65; --grid: #9aafaa;
+      --panel: #e0eee7; --panel-edge: #acc7b9; --teal: #006e62;
+      --mint: #9edac5; --bright: #cceddb; --slate: #32646a; --pale: #edf5ea;
+      --amber: #9f5118; --gold: #f4cd8a;
+      font-family: "Noto Sans CJK SC", "PingFang SC", "Microsoft YaHei", "WenQuanYi Micro Hei", sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      svg {
+        --paper: #132730; --ink: #edf6ef; --muted: #c0d4cf; --grid: #74928e;
+        --panel: #193b3b; --panel-edge: #38605c; --teal: #81dcc2;
+        --mint: #448f83; --bright: #88c5aa; --slate: #335e64; --pale: #203a40;
+        --amber: #efb76b; --gold: #664527;
+      }
+    }
+    text { fill: var(--ink); }
+    .heading { font-size: 38px; font-weight: 700; }
+    .label { font-size: 24px; font-weight: 700; }
+    .detail { font-size: 19px; fill: var(--muted); }
+    .mono { font-family: "DejaVu Sans Mono", monospace; }
+    .edge { stroke: var(--ink); stroke-width: 2; stroke-linejoin: round; }
+    .send, .collect { fill: none; stroke-width: 3.5; stroke-linejoin: miter; }
+    .send { stroke: var(--teal); marker-end: url(#forward); }
+    .collect { stroke: var(--amber); marker-end: url(#return); }
+  </style>
+  <defs>
+    <pattern id="dots" width="12" height="12" patternUnits="userSpaceOnUse">
+      <circle cx="1" cy="1" r="1" fill="var(--grid)" opacity=".38"/>
+    </pattern>
+    <marker id="forward" viewBox="0 0 10 10" markerWidth="3" markerHeight="3" refX="9" refY="5" orient="auto">
+      <path d="M0 0 10 5 0 10Z" fill="var(--teal)"/>
+    </marker>
+    <marker id="return" viewBox="0 0 10 10" markerWidth="3" markerHeight="3" refX="9" refY="5" orient="auto">
+      <path d="M0 0 10 5 0 10Z" fill="var(--amber)"/>
+    </marker>
+    <!-- Each strip has eight cells. The final strip carries one byte of data. -->
+    <g id="strip">
+      <rect width="136" height="15" rx="2" class="edge" fill="var(--mint)"/>
+      <path d="M17 0v15m17-15v15m17-15v15m17-15v15m17-15v15m17-15v15m17-15v15" stroke="var(--ink)" stroke-width="1.4"/>
+    </g>
+    <g id="packet" class="edge">
+      <path d="m0 0 28-16h110L110 0Z" fill="var(--bright)"/>
+      <path d="M0 0h110v13H0Z" fill="var(--mint)"/>
+      <path d="m110 0 28-16v13l-28 16Z" fill="var(--slate)"/>
+    </g>
+  </defs>
+
+  <rect x="1" y="1" width="798" height="388" rx="22" fill="var(--paper)" stroke="var(--panel-edge)"/>
+  <text x="35" y="59" class="heading">25 字节请求的往返</text>
+  <path d="M36 79H764" stroke="var(--panel-edge)"/>
+  <rect x="249" y="93" width="290" height="209" rx="15" fill="var(--panel)" stroke="var(--panel-edge)"/>
+  <rect x="265" y="151" width="258" height="98" fill="url(#dots)"/>
+
+  <g text-anchor="middle">
+    <text x="119" y="133" class="label">应用提交</text>
+    <text x="394" y="133" class="label">Backline</text>
+    <text x="663" y="133" class="label">Python 回调</text>
+  </g>
+  <g transform="translate(51 160)">
+    <use xlink:href="#strip"/>
+    <use xlink:href="#strip" y="21"/>
+    <use xlink:href="#strip" y="42"/>
+    <g transform="translate(0 63)">
+      <rect width="136" height="15" rx="2" fill="var(--paper)" stroke="var(--muted)" stroke-dasharray="3 2"/>
+      <rect width="17" height="15" rx="1" fill="var(--mint)" class="edge"/>
+      <path d="M34 0v15m17-15v15m17-15v15m17-15v15m17-15v15m17-15v15" stroke="var(--muted)" stroke-dasharray="2 2"/>
+    </g>
+  </g>
+
+  <path class="send" d="M197 199H316"/>
+  <use xlink:href="#packet" x="329" y="216"/>
+  <use xlink:href="#packet" x="329" y="194"/>
+  <path d="m329 172 28-16h110l-28 16Z" fill="none" stroke="var(--teal)" stroke-width="1.6" stroke-dasharray="4 4"/>
+  <path class="send" d="M475 199H602"/>
+
+  <g class="edge">
+    <path d="m615 170 13-9h91l-13 9Z" fill="var(--bright)"/>
+    <path d="m706 170 13-9v59l-13 9Z" fill="var(--slate)"/>
+    <rect x="615" y="170" width="91" height="59" rx="3" fill="var(--pale)"/>
+  </g>
+  <text x="660" y="209" text-anchor="middle" class="mono" font-size="28" font-weight="700">f(x)</text>
+  <g text-anchor="middle">
+    <text x="119" y="276" class="detail">4 片 × 8 B</text>
+    <text x="394" y="278" class="label">重组 · 排队</text>
+    <text x="663" y="276" class="detail mono">sum(data) % 2</text>
+  </g>
+  <path class="collect" d="M663 291V343H454"/>
+  <path class="collect" d="M378 343H119V291"/>
+  <rect x="383" y="325" width="63" height="36" rx="9" fill="var(--gold)" stroke="var(--amber)" stroke-width="1.5"/>
+  <text x="414" y="351" text-anchor="middle" class="mono" font-size="24" font-weight="700">0</text>
+  <text x="244" y="334" text-anchor="middle" class="detail" style="fill:var(--amber)">按编号 0 领取</text>
+</svg>
