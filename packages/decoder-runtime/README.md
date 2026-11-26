@@ -1,23 +1,19 @@
 # backline-decoder-runtime 用户指南
 
-这个 Python 包接收字节请求，重组分片并通过本地队列调用应用提供的函数。回调接收 `bytes`，返回 0 或 1。下面的例子提交两个 25 字节请求，计算字节和的奇偶性。
+应用提交一个字节请求，runtime 将分片重组并放入本地队列。Python 回调收到完整的 `bytes`，返回 0 或 1。调用方按请求编号领取结果。
 
 <a id="构建与安装"></a>
 
 ## 运行第一个回调
 
-需要 **Linux、Python 3.11 或更新版本，以及支持 C++20 的 `c++` 编译器**。
-以下命令从本仓库根目录执行；CPU 集成环境目前验证的是 Linux x86_64 / Python 3.12。
+需要 Linux、Python 3.11+ 和支持 C++20 的 `c++` 编译器。请将下方路径换成本地 wheel 的位置。示例只使用 CPU 和 Python 标准库。
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install 'setuptools>=77' wheel
-python -m pip install --no-deps --no-build-isolation ./packages/decoder-runtime
-python demos/demo_decoder_callback.py
+python -m pip install ./backline_decoder_runtime-0.1.1-py3-none-any.whl
+python -m backline_decoder_runtime.demo
 ```
-
-预期输出：
 
 ```text
 request 0: 25 bytes, result=0
@@ -25,16 +21,38 @@ request 1: 25 bytes, result=1
 PASS: fragmentation, queue, callback, and result collection
 ```
 
-[示例源码](../../demos/demo_decoder_callback.py)会在临时目录编译 C++ 库，
-把两个请求分片提交到队列，再通过计算字节和的奇偶性检查回调结果。
-运行结束后清理临时编译文件，不需要模型、GPU 或 PennyLane。
+每个请求含 25 个有效字节。发送端将末片补齐到 8 字节，回调只收到原始的 25 字节。示例先提交两条，再依次领取。下图展开第 0 条请求。
 
-这个示例直接调用原生 C 接口，只验证分片、队列和回调。
-它不经过 Catalyst QNode，也不能证明 RDMA、FPGA 或 GPU 推理已经可用。
+```mermaid
+sequenceDiagram
+    participant App as 调用方
+    participant Queue as 本地队列
+    participant Fn as Python 回调
+    App->>Queue: 声明请求长度 25 字节
+    App->>Queue: 发 4 片，每片 8 字节
+    App->>Queue: 以编号 0 提交
+    Queue->>Fn: 重组后的 25 字节
+    Fn-->>Queue: sum(data) % 2 得到 0
+    App->>Queue: 领取编号 0 的结果
+    Queue-->>App: 0
+```
+
+第一个请求的字节从 0 到 24，总和为 300。第二个请求把首字节改成 1，总和为 301，因此两次回调分别返回 0 和 1。`PASS` 表示示例已核对结果和回调实际收到的字节。原生库在临时目录中编译，示例退出后清理。
+
+<details>
+<summary>从源码安装</summary>
+
+在仓库根目录运行，随后使用上面相同的示例命令。
+
+```bash
+python -m pip install ./packages/decoder-runtime
+```
+
+</details>
 
 ## 在 Python 中接入应用
 
-`build_coprocessor(path)` 编译原生库；`CALLBACK` 描述 ctypes 回调签名；`NativeCallback` 管理当前进程中的函数绑定、结果和错误。应用负责进程超时及模型资源的释放。安装 wheel 后首次使用仍需要 Linux 和 C++20 编译器。
+`build_coprocessor(path)` 在指定位置编译共享库，`NativeCallback` 在 `with` 期间绑定应用函数。安装包中的 `backline_decoder_runtime.demo` 给出了用 ctypes 提交请求和领取结果的完整示例。下面只编译共享库，打印其实际路径。
 
 ```python
 from pathlib import Path
@@ -44,16 +62,10 @@ library = build_coprocessor(Path("run/libdecoder.so"))
 print(library)
 ```
 
-同一进程中开启多个会话时，为每个会话使用单独的库路径和 C 函数名。将函数名传给 `build_coprocessor(path, entry_symbol=name)`，并用同一个 `name` 创建该会话的 `CoprocessorFunction`。每个会话通过自己的库句柄注册回调、管理队列。省略 `entry_symbol` 时，默认入口为 `evodecode_coprocessor`。
-
 <a id="两个仓库如何使用"></a><a id="职责边界"></a>
 
 ## 在 EvoDecode 中部署
 
-先在使用的 EvoDecode 版本中查看 `pyproject.toml` 的 `backline` 依赖，再取得相同版本的 runtime wheel，交给该版本的 `tools/install_backline_cpu.py --runtime-wheel <wheel 路径>`。模型权重、帧和 `Deployment` 参数由 EvoDecode 用户手册说明。上游 RDMA 与 FPGA 演示另有安装步骤。
-
-[EvoDecode 项目与用户文档](https://github.com/qhub-cn/evo-decode) · [源码构建与验收](../../docs/developer.md) · [硬件演示安装](../../INSTALL.md)
+按所用 EvoDecode 版本的 `backline` 可选依赖选择 runtime wheel。配套 SDK 的 `docs/user/deployment.md` 包含双 wheel 安装命令、同一实例连续回放两批以及实时测量示例。输入帧、模型权重和 `Deployment` 参数均由 EvoDecode 管理。[EvoDecode 部署入口](https://github.com/qhub-cn/evo-decode#backline)
 
 <a id="日常开发"></a><a id="版本与发布"></a><a id="本次验证2026-09-28"></a>
-
-[开发和历史验证记录](../../docs/developer.md)

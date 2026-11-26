@@ -1,6 +1,16 @@
 # 维护 EvoBackline runtime
 
-从 [C++ 队列](../packages/decoder-runtime/src/backline_decoder_runtime/coprocessor.cpp) 查看请求怎样分片、排队并按编号收集；从 [NativeCallback](../packages/decoder-runtime/src/backline_decoder_runtime/native_callback.py) 查看回调注册、异常与清理。[构建函数](../packages/decoder-runtime/src/backline_decoder_runtime/build.py) 把原生库编译到调用方指定的目录。
+## 从 25 字节请求定位源码
+
+| 执行顺序 | 文件和入口 | 输入与输出 |
+| --- | --- | --- |
+| 1. 编译 | [build.py](../packages/decoder-runtime/src/backline_decoder_runtime/build.py) · `build_coprocessor` | 使用包内的 C++ 源码和调用方提供的路径生成共享库，返回绝对路径。 |
+| 2. 绑定 | [native_callback.py](../packages/decoder-runtime/src/backline_decoder_runtime/native_callback.py) · `NativeCallback.__enter__` | 把 Python 函数注册到库句柄。示例指定请求长 25 字节、队列深度 2。 |
+| 3. 提交 | [demo.py](../packages/decoder-runtime/src/backline_decoder_runtime/demo.py) · `main` | 通过 ctypes 声明长度、追加 4 个数据分片、提交请求编号。 |
+| 4. 执行 | [coprocessor.cpp](../packages/decoder-runtime/src/backline_decoder_runtime/coprocessor.cpp) · `work` | 原生线程按入队顺序取任务，经 `NativeCallback._invoke` 将原始字节交给应用函数，按编号保存返回值。 |
+| 5. 领取与关闭 | `demo.main`、`NativeCallback.__exit__` | 按编号领取结果。退出时原生库等待队列中的工作结束，清除状态并解除回调绑定。 |
+
+默认 C 入口为 `evodecode_coprocessor`，`CALLBACK` 声明 ctypes 签名。同一进程中每个会话使用独立库路径和入口符号。把同一名称传给 `build_coprocessor(..., entry_symbol=name)` 和对应的 `CoprocessorFunction`。回调异常可从 `binding.error` 查看，应用负责进程超时和模型资源释放。
 
 ## 与 EvoDecode 的分工
 
@@ -67,6 +77,7 @@ python -m pip install --no-deps --no-build-isolation -e ./packages/decoder-runti
 python -m pip wheel --no-deps --no-build-isolation ./packages/decoder-runtime --wheel-dir ./dist
 python -m pip install --force-reinstall --no-deps ./dist/backline_decoder_runtime-0.1.1-py3-none-any.whl
 python -m unittest discover -s packages/decoder-runtime/tests -v
+python -m backline_decoder_runtime.demo
 python demos/demo_decoder_callback.py
 ```
 
