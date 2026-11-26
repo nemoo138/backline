@@ -1,33 +1,39 @@
 # EvoBackline
 
-这个 Backline fork 为 EvoDecode 提供 `backline-decoder-runtime`，负责请求分片、任务队列和本地 Python 回调；EvoDecode 负责准备数据、加载模型和解码。
+EvoBackline 提供 `backline-decoder-runtime`。它把应用提交的字节分片重组成请求，排队调用 Python 函数，再按请求编号返回结果。EvoDecode 使用它做回放和实时解码。
 
-[用户指南](packages/decoder-runtime/README.md) · [开发者指南](docs/developer.md) · [Agent 工作指南](AGENTS.md)
+<a id="接入-evodecode"></a>
+
+| 你想做什么 | 从哪里开始 |
+| --- | --- |
+| 在本机验证队列和 Python 回调 | 运行下方的 CPU 示例 |
+| 用 EvoDecode 回放已有帧或实时测量 | [EvoDecode 部署入口](https://github.com/qhub-cn/evo-decode#backline)，配套 SDK 源码中的手册为 `docs/user/deployment.md` |
+| 复现上游 CPU、RDMA、GPU 或 FPGA 演示 | [按现有硬件选择安装步骤](INSTALL.md#choose-your-hardware) |
 
 <a id="先运行无权重示例"></a><a id="接口与使用限制"></a>
 
 ## 试用本地回调
 
-在 Linux、Python 3.11+ 及支持 C++20 的虚拟环境中，从仓库根目录运行：
+在 Linux、Python 3.11+ 的虚拟环境中准备支持 C++20 的 `c++` 编译器。把下方路径换成本地 wheel 的位置，安装后可从任意空目录运行。
 
 ```bash
-python -m pip install ./packages/decoder-runtime
-python demos/demo_decoder_callback.py
+python -m pip install ./backline_decoder_runtime-0.1.1-py3-none-any.whl
+python -m backline_decoder_runtime.demo
 ```
 
-终端应显示两个请求的结果 `0` 和 `1`，并输出 `PASS`。创建环境、编译及回调接口见[用户指南](packages/decoder-runtime/README.md)。
+```text
+request 0: 25 bytes, result=0
+request 1: 25 bytes, result=1
+PASS: fragmentation, queue, callback, and result collection
+```
 
-<a id="接入-evodecode"></a>
-
-| 任务 | 入口 |
-| --- | --- |
-| 使用 EvoDecode 的回放或实时测量 | [SDK 环境与 runtime 配套安装](packages/decoder-runtime/README.md#在-evodecode-中部署) |
-| 复现上游 CPU、RDMA、GPU 或 FPGA 演示 | [按硬件准备环境](INSTALL.md) · [运行演示](demos/README.md) · [测量与基准](benchmarks/README.md) |
-| 查看队列、回调、原生符号和源码构建过程 | [架构与验收](docs/developer.md) |
+两个结果是各自 25 个字节的和对 2 取余。分片如何重组、回调收到什么，见[用户指南](packages/decoder-runtime/README.md#运行第一个回调)。
 
 <a id="与-evodecode-的分工"></a><a id="结构与调用流程"></a><a id="仓库内容"></a><a id="开发与验证"></a>
 
-[仓库分工和调用流程图](docs/developer.md#结构与调用流程)
+## 维护与验证
+
+[开发者指南](docs/developer.md)说明源码、会话和构建验收。[Agent 工作指南](AGENTS.md)给出按组件选择修改位置和检查命令的约定。
 
 ## 上游来源与许可
 
