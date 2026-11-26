@@ -3,8 +3,9 @@
 [`bench.py`](bench.py) times the syndrome-to-correction round trip and writes one CSV of per-round
 samples plus a percentile summary. One run measures one cell of a matrix.
 
-Assumes [`../INSTALL.md`](../INSTALL.md) is done, with the virtual environment active. The demos in
-[`../demos/`](../demos) are the same round trip without the timing, and are the place to start.
+To interpret a result before setting up hardware, [read one recorded round trip](../data/README.md#read-one-recorded-round-trip). It uses the archived CPU echo trace and shows how a clock-cycle count becomes microseconds.
+
+To collect new measurements, complete the [hardware installation](../INSTALL.md#choose-your-hardware), activate the environment and run the matching [untimed demo](../demos/README.md) first.
 
 ## Prerequisites
 

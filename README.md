@@ -1,56 +1,27 @@
 # EvoBackline
 
-`evobackline` 是本 Backline fork 为 [EvoDecode](https://github.com/qhub-cn/evo-decode)
-长期维护的集成分支。这里维护数据传递所需的分片重组、任务队列和回调接口，
-让 EvoDecode 可以把收到的数据交给自己的解码器，再返回结果。
+EvoBackline 提供 `backline-decoder-runtime`。它把应用提交的字节分片重组成请求，排队调用 Python 函数，再按请求编号返回结果。EvoDecode 使用它做回放和实时解码。
 
-本分支的主要交付物是独立 Python 包
-[`backline-decoder-runtime`](packages/decoder-runtime/README.md)，当前版本为 **0.1.0**。
-它不依赖 EvoDecode、Torch 或模型权重；官方 Backline 的核心实现仍由
-PennyLane/Catalyst 提供。本仓库保留上游的硬件演示、构建配置和论文资料。
+![编号 0 的请求分成四片，经 Backline 重组为 25 字节并排队。Python 回调计算字节和的奇偶性，应用按编号领取结果 0。](assets/request-round-trip.svg)
 
-## 与 EvoDecode 的分工
+<a id="接入-evodecode"></a>
 
-| 工作 | 维护位置 |
+| 你想做什么 | 从哪里开始 |
 | --- | --- |
-| 原生请求分片重组、有界任务队列、结果收集 | 本仓库的 `packages/decoder-runtime/` |
-| Python 回调注册、错误记录和退出清理 | 本仓库的 `packages/decoder-runtime/` |
-| Controller/Coprocessor 配置及实际传输执行 | PennyLane/Catalyst；本仓库保留演示和构建配置 |
-| 帧格式、输入转换、回放和实时数据生成 | EvoDecode |
-| AQ2/Ising 模型构造、权重加载、CPU/GPU 推理 | EvoDecode |
-| 实验配置、预测对比和结果报告 | EvoDecode |
+| 在本机验证队列和 Python 回调 | [运行 CPU 示例](#试用本地回调)，源码在 [packages/decoder-runtime/](packages/decoder-runtime/) |
+| 用 EvoDecode 回放已有帧或实时测量 | [EvoDecode 部署入口](https://github.com/qhub-cn/evo-decode#backline)，配套 SDK 源码中的手册为 `docs/user/deployment.md` |
+| 复现上游 CPU、RDMA、GPU 或 FPGA 演示 | [选择硬件环境](INSTALL.md#choose-your-hardware)后运行 [demos/](demos/)。测量程序在 [benchmarks/](benchmarks/)，记录在 [data/](data/) |
 
-共享包接收字节数据，调用应用提供的 Python 函数，当前回调要求返回 **0 或 1**。
-它不解释数据对应哪种模型，也不决定模型如何分块推理。
-旧的 EvoDecode 专用演示和模型适配器已经移除，本仓库不分发模型权重或本地实验结果。
+<a id="先运行无权重示例"></a><a id="接口与使用限制"></a>
 
-## 结构与调用流程
+## 试用本地回调
 
-![EvoBackline 架构与请求生命周期](assets/evobackline-architecture.png)
-
-[查看高清原图](assets/evobackline-architecture.png)。上图展示当前 EvoDecode 的本地
-`memcpy` 接入：Controller 发送数据，共享包重组分片、排队并调用 EvoDecode 的
-`predict` 回调，完成后按请求编号取回结果。CPU Coprocessor 承接回调，AQ2 的
-张量计算仍在 GPU 上执行；权重和 RT 跨块状态由 EvoDecode 管理。
-
-图示省略了返回路径上的工作线程和传输层细节。传输分片每次携带 8 字节，
-与模型的帧块不同；RT 中间块返回的 0 是占位确认，最终块才返回 shot 预测。
-本地无权重示例直接调用 C 入口；RDMA/FPGA 属于另行配置的上游硬件演示。
-
-## 先运行无权重示例
-
-需要 **Linux、Python 3.11 或更新版本，以及支持 C++20 的 `c++` 编译器**。
-以下命令从本仓库根目录执行；CPU 集成环境目前验证的是 Linux x86_64 / Python 3.12。
+在 Linux、Python 3.11+ 的虚拟环境中准备支持 C++20 的 `c++` 编译器。把下方路径换成本地 wheel 的位置，安装后可从任意空目录运行。
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install 'setuptools>=77' wheel
-python -m pip install --no-deps --no-build-isolation ./packages/decoder-runtime
-python demos/demo_decoder_callback.py
+python -m pip install ./backline_decoder_runtime-0.1.1-py3-none-any.whl
+python -m backline_decoder_runtime.demo
 ```
-
-预期输出：
 
 ```text
 request 0: 25 bytes, result=0
@@ -58,87 +29,13 @@ request 1: 25 bytes, result=1
 PASS: fragmentation, queue, callback, and result collection
 ```
 
-[示例源码](demos/demo_decoder_callback.py)会在临时目录编译 C++ 库，
-把两个请求分片提交到队列，再通过计算字节和的奇偶性检查回调结果。
-运行结束后清理临时编译文件，不需要模型、GPU 或 PennyLane。
+两个结果是各自 25 个字节的和对 2 取余。分片如何重组、回调收到什么，见[用户指南](packages/decoder-runtime/README.md#运行第一个回调)。
 
-这个示例直接调用原生 C 接口，只验证分片、队列和回调。
-它不经过 Catalyst QNode，也不能证明 RDMA、FPGA 或 GPU 推理已经可用。
+<a id="与-evodecode-的分工"></a><a id="结构与调用流程"></a><a id="仓库内容"></a><a id="开发与验证"></a>
 
-## 接入 EvoDecode
+## 维护与验证
 
-先在本仓库根目录构建安装包：
-
-```bash
-python -m pip wheel --no-deps --no-build-isolation \
-  ./packages/decoder-runtime --wheel-dir ./dist
-```
-
-然后在 EvoDecode 仓库根目录，将生成的 wheel 交给安装脚本：
-
-```bash
-python3.12 tools/install_backline_cpu.py \
-  --runtime-wheel /path/to/backline/dist/backline_decoder_runtime-0.1.0-py3-none-any.whl
-```
-
-将 `/path/to/backline` 替换成实际路径。两个仓库不必放在相邻目录。
-这一步安装 CPU 集成环境；GPU 推理还需按 EvoDecode 文档准备对应环境和权重。
-实验入口、配置模板及模型使用方式请查看 EvoDecode 中的 `docs/backline.md`
-和 `examples/backline/`，本仓库不再维护另一套模型运行入口。
-
-当前 wheel 尚未发布到 PyPI 或 GitHub Release，需从源码构建。
-wheel 包含 Python/C++ 源码；原生库在使用时编译到调用方指定的目录，
-因此安装 wheel 后仍需要 C++20 编译器。
-
-## 接口与使用限制
-
-共享包公开 `NativeCallback`、`CALLBACK` 和 `build_coprocessor`：
-
-- `build_coprocessor` 编译原生库到指定路径。
-- `NativeCallback` 管理同进程 Python 回调，并可启用有界任务队列。
-- `CALLBACK` 提供回调使用的 ctypes 函数类型。
-
-完整可运行用法见[无权重示例](demos/demo_decoder_callback.py)，
-安装、接口和版本说明见[共享包文档](packages/decoder-runtime/README.md)。
-原生符号保留 `evodecode_*` 名称以兼容现有调用方；这不表示包依赖 EvoDecode。
-回调执行超时的进程终止由调用方管理。共享包本身不提供远程部署或 GPU 调度。
-
-## 仓库内容
-
-| 路径 | 用途 |
-| --- | --- |
-| [`packages/decoder-runtime/`](packages/decoder-runtime/README.md) | 本分支维护的共享运行包及协议测试 |
-| [`demos/demo_decoder_callback.py`](demos/demo_decoder_callback.py) | 不依赖模型的本地回调示例 |
-| [`demos/`](demos/README.md) | 保留的上游 CPU、GPU、RDMA 和 FPGA 演示 |
-| [`config/xbuild/`](config/xbuild/README.md) | 上游构建系统与目标机器配置 |
-| [`config/machines.toml`](config/machines.toml) | 硬件演示使用的机器配置 |
-| [`benchmarks/`](benchmarks/README.md) | 上游测量程序与使用说明 |
-| `data/`、`assets/` | 上游实验数据及配图 |
-| `scripts/` | 演示与测量辅助脚本 |
-
-运行硬件演示时，按 [`INSTALL.md`](INSTALL.md) 准备对应的
-PennyLane/Catalyst、网络和设备，再按[演示说明](demos/README.md)执行。
-这些依赖与上面的独立回调示例不同。
-上游论文中的延迟测量属于其指定硬件和实验条件，不作为本分支或 EvoDecode 模型的性能承诺。
-
-## 开发与验证
-
-在已准备好上述 Python 环境的仓库根目录执行：
-
-```bash
-python -m unittest discover -s packages/decoder-runtime/tests -v
-python demos/demo_decoder_callback.py
-make -C config/xbuild check
-make -C config/xbuild test
-```
-
-共享包测试覆盖分片、请求编号、队列容量、回调错误、线程与清理。
-构建系统测试检查构建规则；两者都不能替代实际硬件上的集成测试。
-
-`evobackline` 长期保留。相关开发使用独立功能分支，经测试和代码审查后通过 PR
-合入 `evobackline`。共享接口有变化时，在本仓库更新包版本，再由 EvoDecode 更新
-固定依赖并运行集成测试；协议变化还需同步调整调用方。
-参与开发前请阅读 [`AGENTS.md`](AGENTS.md) 中的构建注意事项。
+[开发者指南](docs/developer.md)说明源码、会话和构建验收。[Agent 工作指南](AGENTS.md)给出按组件选择修改位置和检查命令的约定。
 
 ## 上游来源与许可
 

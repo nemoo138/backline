@@ -40,26 +40,7 @@ node's code to the machine that runs it, and starts the run.
 
 ## Queue and callback example for EvoDecode
 
-The custom runtime maintained here handles bytes, fragment assembly, bounded requests,
-and Python callbacks. EvoDecode owns model loading, weights, input mapping, and experiment
-results. The previous model-specific demo 1b, its adapters, and local experiment outputs
-have been removed. Its model files are now managed in EvoDecode; this repository
-does not require those files for installation or tests. The upstream numbered
-hardware demos remain available below.
-
-Install the shared package, then run this from the repository root:
-
-```bash
-python -m pip install --no-deps --no-build-isolation ./packages/decoder-runtime
-python demos/demo_decoder_callback.py
-python -m unittest discover -s packages/decoder-runtime/tests -v
-```
-
-The example compiles a temporary C++ library, submits two fragmented requests, and checks
-callback results using a byte-parity function. It requires Python and a C++20 compiler;
-no model, Torch, PennyLane, or GPU is needed. It directly exercises the native C ABI,
-not a Catalyst QNode or physical RDMA/FPGA transport. Use demo 1 or the hardware demos
-for those integration checks. Temporary build files are removed when the example exits.
+For the standalone CPU queue and callback example, use the [runtime user guide](../packages/decoder-runtime/README.md#运行第一个回调). The numbered demos below exercise the upstream hardware integrations.
 
 ## Running demos
 
